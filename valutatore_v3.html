@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Valutatore DigCompEdu — Analisi Critica</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// Suppress PDF.js fake worker warning
+const _warn = console.warn.bind(console);
+console.warn = (...a) => { if(String(a[0]).includes('fake worker')) return; _warn(...a); };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+:root{
+  --bg:#F5F3EE;--surface:#fff;--surface2:#F0EDE6;--border:#DDD9D0;--border2:#C8C3B8;
+  --text:#1A1915;--text2:#5C5850;--text3:#9C9890;
+  --green:#2A5C45;--green-bg:#E8F2EC;--green-b:#A8D4BC;
+  --red:#8B1A1A;--red-bg:#FBF0F0;--red-b:#D9A0A0;
+  --amber:#7A5C00;--amber-bg:#FBF6E8;--amber-b:#E0CC80;
+  --blue:#1A3A6B;--blue-bg:#EEF3FA;--blue-b:#B5CFF0;
+  --purple:#3C3489;--purple-bg:#EEEDFE;--purple-b:#AFA9EC;
+  --r:8px;--rl:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;line-height:1.6}
+header{background:var(--text);color:#F5F3EE;padding:1.1rem 2rem;display:flex;align-items:center;gap:1rem;border-bottom:2px solid var(--green)}
+h1{font-family:'Instrument Serif',serif;font-size:1.35rem;font-weight:400}
+.sub{font-family:'DM Mono',monospace;font-size:10px;color:#9C9890;text-transform:uppercase;letter-spacing:.1em}
+.layout{display:flex;min-height:calc(100vh - 60px)}
+.sidebar{width:240px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:1.25rem 0;position:sticky;top:0;height:calc(100vh - 60px);overflow-y:auto}
+.slabel{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:.4rem;padding:0 1rem}
+.sitem{display:flex;align-items:center;gap:9px;padding:7px 1rem;cursor:pointer;color:var(--text2);font-size:13px;transition:background .12s}
+.sitem:hover{background:var(--surface2)}
+.sitem.active{background:var(--green-bg);color:var(--green);font-weight:500}
+.sitem.done{color:var(--text2)}
+.snum{width:21px;height:21px;border-radius:50%;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-family:'DM Mono',monospace;flex-shrink:0}
+.sitem.active .snum{background:var(--green);border-color:var(--green);color:#fff}
+.sitem.done .snum{background:var(--green);border-color:var(--green);color:#fff;font-size:10px}
+.sdiv{border:none;border-top:1px solid var(--border);margin:.875rem 0}
+.sinfo{padding:0 1rem;font-size:11px;color:var(--text3);line-height:1.5}
+.content{flex:1;padding:2rem;max-width:900px}
+.pane{display:none}.pane.active{display:block}
+.ptitle{font-family:'Instrument Serif',serif;font-size:1.7rem;font-weight:400;margin-bottom:.2rem}
+.pdesc{color:var(--text2);font-size:13px;margin-bottom:1.5rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:1.1rem 1.4rem;margin-bottom:.875rem}
+.ctitle{font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.6rem;font-family:'DM Mono',monospace}
+.fig-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fig-card{border:1.5px solid var(--border);border-radius:var(--rl);padding:1.1rem;cursor:pointer;transition:all .18s;background:var(--surface)}
+.fig-card:hover,.fig-card.sel{border-color:var(--green);background:var(--green-bg)}
+.fig-card .ico{font-size:26px;margin-bottom:.4rem}
+.fig-card h3{font-size:.95rem;font-weight:600;margin-bottom:.2rem}
+.fig-card p{font-size:11px;color:var(--text2);line-height:1.4}
+.upload-zone{border:2px dashed var(--border2);border-radius:var(--rl);padding:2.2rem;text-align:center;cursor:pointer;transition:all .18s;color:var(--text2)}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--green);background:var(--green-bg);color:var(--green)}
+.upload-icon{font-size:32px;margin-bottom:.6rem}
+.upload-zone h3{font-size:14px;font-weight:500;margin-bottom:.2rem}
+.upload-zone p{font-size:12px}
+.file-pill{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--green-bg);border:1px solid var(--green-b);border-radius:var(--r);font-size:12px;color:var(--green);margin-top:.875rem}
+.hint{background:var(--blue-bg);border:1px solid var(--blue-b);border-radius:var(--r);padding:.65rem .875rem;font-size:11px;color:var(--blue);font-family:'DM Mono',monospace;margin-bottom:.875rem;line-height:1.6}
+textarea{width:100%;min-height:260px;border:1px solid var(--border);border-radius:var(--rl);padding:.875rem;font-family:'DM Mono',monospace;font-size:11.5px;color:var(--text);background:var(--surface);resize:vertical;line-height:1.65}
+textarea:focus{outline:none;border-color:var(--green)}
+select{width:100%;padding:7px 11px;border:1px solid var(--border);border-radius:var(--r);font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);color:var(--text)}
+.btn{padding:8px 16px;border-radius:var(--r);border:1px solid var(--border2);background:var(--surface);color:var(--text);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500;transition:all .13s;display:inline-flex;align-items:center;gap:5px}
+.btn:hover{background:var(--surface2)}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.btn-p{background:var(--green);border-color:var(--green);color:#fff}
+.btn-p:hover{background:#224d38}
+.btn-dk{background:var(--text);border-color:var(--text);color:var(--bg)}
+.btn-dk:hover{background:#2A2A25}
+.btn-dl{background:var(--purple-bg);border-color:var(--purple-b);color:var(--purple);font-weight:600}
+.btn-dl:hover{background:#dddcfc}
+.row-e{display:flex;gap:9px;justify-content:flex-end;margin-top:1.25rem}
+.row-b{display:flex;gap:9px;justify-content:space-between;margin-top:1.25rem}
+/* risultati */
+.sumgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:.875rem;text-align:center}
+.sc .n{font-family:'Instrument Serif',serif;font-size:1.8rem;line-height:1;margin-bottom:.2rem}
+.sc .l{font-size:10px;color:var(--text2);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.05em}
+.pb{background:var(--border);border-radius:3px;height:4px;margin-top:5px;overflow:hidden}
+.pf{height:100%;border-radius:3px;background:var(--green);transition:width .4s}
+.rblock{border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:1rem}
+.rhead{padding:.875rem 1.1rem;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border)}
+.rhead.ok{background:#EAF3DE}.rhead.pa{background:var(--amber-bg)}.rhead.ko{background:var(--red-bg)}
+.rbody{padding:1.1rem}
+.ind-lbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}
+.ind-name{font-size:13px;font-weight:500}
+.lbadge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500}
+.lb-r{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-b)}
+.lb-ok{background:#EAF3DE;color:#1A4A1A;border:1px solid #B0D9A0}
+.lb-lo{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b)}
+.lb-pa{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-b)}
+.verdict{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px}
+.v-ok{background:#C8E8C0;color:#1A4A1A}.v-pa{background:#FAEDC0;color:#6A4800}.v-ko{background:#F0C8C8;color:#6A1A1A}
+.motiv{font-size:12.5px;color:var(--text2);margin-top:.65rem;padding:.75rem .875rem;background:var(--surface2);border-radius:var(--r);border-left:3px solid var(--border2);line-height:1.65}
+.motiv.ok{border-left-color:var(--green)}.motiv.pa{border-left-color:var(--amber)}.motiv.ko{border-left-color:var(--red)}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:.875rem}
+.dbox h5{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-family:'DM Mono',monospace}
+.dbox.pos h5{color:var(--green)}.dbox.neg h5{color:var(--red)}
+.dbox ul{font-size:11.5px;color:var(--text2);padding-left:1rem;line-height:1.7}
+.nota-gen{border:1px solid var(--border);border-radius:var(--rl);padding:1.1rem 1.4rem;margin-bottom:1.25rem;border-left:4px solid var(--green)}
+.dl-section{background:var(--purple-bg);border:1px solid var(--purple-b);border-radius:var(--rl);padding:1.1rem 1.4rem;margin-bottom:1rem}
+.dl-section h3{font-size:13px;font-weight:600;color:var(--purple);margin-bottom:.75rem}
+.dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dl-card{background:var(--surface);border:1px solid var(--purple-b);border-radius:var(--r);padding:.875rem;display:flex;flex-direction:column;gap:.5rem}
+.dl-card h4{font-size:12px;font-weight:600;color:var(--text)}
+.dl-card p{font-size:11px;color:var(--text2)}
+.loading{display:none;position:fixed;inset:0;background:rgba(26,25,21,.78);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:.875rem}
+.loading.show{display:flex}
+.spin{width:38px;height:38px;border:3px solid rgba(245,243,238,.18);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading p{color:#F5F3EE;font-family:'DM Mono',monospace;font-size:12px;text-align:center;max-width:300px}
+.thresh{border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:.875rem}
+.th-head{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.1rem;background:var(--surface2);cursor:pointer;border-bottom:1px solid transparent;transition:all .15s}
+.th-head:hover{background:var(--border)}
+.th-head.open{border-bottom-color:var(--border)}
+.th-body{padding:1.1rem;display:none}
+.th-body.open{display:block}
+.lrow{display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border)}
+.lrow:last-child{border-bottom:none}
+.ltag{flex-shrink:0;width:68px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;padding:3px 7px;border-radius:var(--r);text-align:center}
+.l1{background:#E1F5EE;color:#085041}.l2{background:var(--blue-bg);color:var(--blue)}
+.l3{background:var(--amber-bg);color:var(--amber)}.l4{background:var(--purple-bg);color:var(--purple)}
+.lcrit{font-size:11.5px;color:var(--text2);line-height:1.55}
+.lcrit strong{color:var(--text);font-weight:500}
+.inc{color:#2A5C45}.exc{color:var(--red)}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Valutatore DigCompEdu — Analisi Critica</h1>
+    <div class="sub">Analisi scenari · Verifica livelli · Export xlsx compilato</div>
+  </div>
+  <span id="hpill" style="display:none;margin-left:auto;padding:3px 10px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace;font-weight:500;text-transform:uppercase"></span>
+</header>
+
+<div class="layout">
+<nav class="sidebar">
+  <div style="padding-bottom:1rem">
+    <div class="slabel">Flusso</div>
+    <div class="sitem active" id="nav1" onclick="gp(1)"><div class="snum" id="sn1">1</div>Figura</div>
+    <div class="sitem" id="nav2" onclick="gp(2)"><div class="snum" id="sn2">2</div>Carica report</div>
+    <div class="sitem" id="nav3" onclick="gp(3)"><div class="snum" id="sn3">3</div>Analisi AI</div>
+    <div class="sitem" id="nav4" onclick="gp(4)"><div class="snum" id="sn4">4</div>Risultati + Export</div>
+  </div>
+  <hr class="sdiv">
+  <div class="slabel" style="padding:0 1rem">Info</div>
+  <div class="sinfo">L'AI analizza le risposte agli scenari, verifica criticamente i livelli dichiarati e compila i template xlsx ufficiali.</div>
+  <hr class="sdiv">
+  <div id="stat-box" style="display:none;padding:0 1rem">
+    <div class="slabel" style="padding:0">Risultato</div>
+    <div id="stat-body" style="font-size:11px;color:var(--text2);line-height:1.8"></div>
+  </div>
+</nav>
+
+<main class="content">
+
+<!-- PANE 1 -->
+<div class="pane active" id="pane1">
+  <h2 class="ptitle">Seleziona la figura</h2>
+  <p class="pdesc">Scegli la figura professionale. Verranno generati i file xlsx per entrambe le aree (A1 e A2).</p>
+  <div class="card">
+    <div class="ctitle">Figura professionale</div>
+    <div class="fig-grid">
+      <div class="fig-card" id="fc-ata" onclick="selFig('ATA')">
+        <div class="ico">🗂️</div><h3>ATA</h3>
+        <p>Genera: ATA-A1 (Alfabetizzazione) e ATA-A2 (Comunicazione e collaborazione)</p>
+      </div>
+      <div class="fig-card" id="fc-doc" onclick="selFig('Docente')">
+        <div class="ico">📚</div><h3>Docente</h3>
+        <p>Genera: DOC-A1 (Coinvolgimento professionale) e DOC-A2 (Risorse digitali)</p>
+      </div>
+    </div>
+  </div>
+  <div class="row-e"><button class="btn btn-p" id="btn1" disabled onclick="gp(2)">Avanti →</button></div>
+</div>
+
+<!-- PANE 2 -->
+<div class="pane" id="pane2">
+  <h2 class="ptitle">Carica il report</h2>
+  <p class="pdesc">Carica il file con scenari e risposte. Il report deve contenere le risposte ai quesiti degli scenari e il livello identificato per ogni indicatore.</p>
+  <div class="card">
+    <div class="hint">
+      <strong>Formato atteso:</strong> Il report può contenere scenari numerati con domande (D:) e risposte (R:), oppure un testo narrativo strutturato per competenza/indicatore.<br>
+      Deve essere esplicito il <strong>livello identificato</strong> per ogni indicatore (es. "Livello: L2" o "Livello attribuito: L3").<br>
+      Formati supportati: PDF, TXT. Puoi anche incollare il testo direttamente.
+    </div>
+    <div class="upload-zone" id="uz" onclick="document.getElementById('fi').click()"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')" ondrop="onDrop(event)">
+      <div class="upload-icon">📄</div>
+      <h3>Trascina il file qui o clicca per selezionarlo</h3>
+      <p>PDF, TXT</p>
+    </div>
+    <input type="file" id="fi" accept=".pdf,.txt" style="display:none" onchange="onFile(this)">
+    <div id="fpill" style="display:none" class="file-pill">
+      <span>📎</span><span id="fname"></span>
+      <button class="btn" style="margin-left:auto;padding:3px 9px;font-size:11px" onclick="rmFile()">✕</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ctitle">Oppure incolla direttamente il testo</div>
+    <textarea id="rt2" style="min-height:160px" placeholder="Incolla qui il testo del report con scenari, risposte e livelli identificati..."></textarea>
+  </div>
+  <div class="card" id="tc" style="display:none">
+    <div class="ctitle">Testo estratto dal file</div>
+    <textarea id="rt1" style="min-height:160px"></textarea>
+  </div>
+  <div class="row-b">
+    <button class="btn" onclick="gp(1)">← Indietro</button>
+    <button class="btn btn-p" onclick="gp(3)">Avanti →</button>
+  </div>
+</div>
+
+<!-- PANE 3 -->
+<div class="pane" id="pane3">
+  <h2 class="ptitle">Configura l'analisi</h2>
+  <p class="pdesc">L'AI analizzerà le risposte agli scenari, confronterà criticamente i livelli dichiarati con il quadro di riferimento e compilerà i template xlsx.</p>
+
+  <div class="thresh">
+    <div class="th-head" onclick="togT(this)">
+      <span style="font-size:13px;font-weight:500">📊 Soglie di valutazione</span>
+      <span style="font-size:12px;color:var(--text2)">Espandi ↓</span>
+    </div>
+    <div class="th-body" id="tbody"></div>
+  </div>
+
+  <div class="card">
+    <div class="ctitle">Parametri</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <label style="font-size:13px">
+        <div style="font-weight:500;margin-bottom:4px">Rigore</div>
+        <select id="rigor">
+          <option value="standard">Standard — equilibrato</option>
+          <option value="critico" selected>Critico — beneficio del dubbio a sfavore</option>
+          <option value="severo">Molto critico — massima severità</option>
+        </select>
+      </label>
+      <label style="font-size:13px">
+        <div style="font-weight:500;margin-bottom:4px">Lingua output xlsx</div>
+        <select id="lang">
+          <option value="it" selected>Italiano</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="row-b">
+    <button class="btn" onclick="gp(2)">← Indietro</button>
+    <button class="btn btn-p" onclick="avvia()">🔍 Avvia analisi e genera xlsx →</button>
+  </div>
+</div>
+
+<!-- PANE 4 -->
+<div class="pane" id="pane4">
+  <h2 class="ptitle">Risultati e download</h2>
+  <p class="pdesc">Analisi critica completata. Scarica i file xlsx compilati nel formato ufficiale del template.</p>
+
+  <div class="dl-section">
+    <h3>📥 Scarica i file xlsx compilati</h3>
+    <div class="dl-grid" id="dl-grid"></div>
+  </div>
+
+  <div class="sumgrid" id="sumgrid"></div>
+  <div id="nota-gen-box"></div>
+  <div id="rcontent"></div>
+
+  <div class="row-b">
+    <button class="btn" onclick="gp(3)">← Modifica</button>
+    <button class="btn btn-p" onclick="resetApp()">+ Nuova analisi</button>
+  </div>
+</div>
+
+</main>
+</div>
+
+<div class="loading" id="loading">
+  <div class="spin"></div>
+  <p id="lmsg">Analisi in corso...</p>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// STRUTTURA TEMPLATE (foglio x indicatori)
+// ─────────────────────────────────────────────
+const TEMPLATES = {
+  ATA: {
+    A1: {
+      label: 'ATA-A1 Alfabetizzazione informativa',
+      filename: 'ATA-A1-valutazione-compilata.xlsx',
+      sheets: [
+        { name:'dossier A1-C1.1', comp:'1.1', indicators:['1.1.1','1.1.2','1.1.3'] },
+        { name:'dossier A1-C1.2', comp:'1.2', indicators:['1.2.1','1.2.2','1.2.3','1.2.4'] },
+        { name:'dossier A1-C1.3', comp:'1.3', indicators:['1.3.1','1.3.2','1.3.3','1.3.4','1.2.5','1.2.6'] }
+      ]
+    },
+    A2: {
+      label: 'ATA-A2 Comunicazione e collaborazione',
+      filename: 'ATA-A2-valutazione-compilata.xlsx',
+      sheets: [
+        { name:'dossier A2-C2.1', comp:'2.1', indicators:['2.1.1','2.1.2','2.1.3'] },
+        { name:'dossier A2-C2.2', comp:'2.2', indicators:['2.2.1','2.2.2','2.2.3'] },
+        { name:'dossier A2-C2.3', comp:'2.3', indicators:['2.3.1','2.3.2','2.3.3','2.3.4','2.3.5'] },
+        { name:'dossier A2-C2.4', comp:'2.4', indicators:['2.4.1','2.4.2','2.4.3','2.4.4'] },
+        { name:'dossier A2-C2.5', comp:'2.5', indicators:['2.5.1','2.5.2','2.5.3','2.5.4'] },
+        { name:'dossier A2-C2.6', comp:'2.6', indicators:['2.6.1','2.6.2'] }
+      ]
+    }
+  },
+  Docente: {
+    A1: {
+      label: 'DOC-A1 Coinvolgimento professionale',
+      filename: 'DOC-A1-valutazione-compilata.xlsx',
+      sheets: [
+        { name:'dossier A1-C1.1', comp:'1.1', indicators:['1.1.1','1.1.2','1.1.3','1.1.4','1.1.5','1.1.6','1.1.7','1.1.8'] },
+        { name:'dossier A1-C1.2', comp:'1.2', indicators:['1.2.1','1.2.2','1.2.3','1.2.4','1.2.5'] },
+        { name:'dossier A1-C1.3', comp:'1.3', indicators:['1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.3.6','1.3.7','1.3.8'] },
+        { name:'dossier A1-C1.4', comp:'1.4', indicators:['1.4.1','1.4.2','1.4.3','1.4.4','1.4.5','1.4.6','1.4.7'] }
+      ]
+    },
+    A2: {
+      label: 'DOC-A2 Risorse digitali',
+      filename: 'DOC-A2-valutazione-compilata.xlsx',
+      sheets: [
+        { name:'dossier A2-C2.1', comp:'2.1', indicators:['2.1.1','2.1.2','2.1.3','2.1.4','2.1.5'] },
+        { name:'dossier A2-C2.2', comp:'2.2', indicators:['2.2.1','2.2.2','2.2.3','2.2.4','2.2.5','2.2.6'] },
+        { name:'dossier A2-C2.3', comp:'2.3', indicators:['2.3.1','2.3.2','2.3.3','2.3.4','2.3.5','2.3.6','2.3.7','2.3.8'] },
+        { name:'dossier A2-C2.4', comp:'2.4', indicators:['2.4.1','2.4.2','2.4.3','2.4.4','2.4.5','2.4.6'] }
+      ]
+    }
+  }
+};
+
+const SOGLIE = {
+  L1:{ label:'L1 — Base/Consapevolezza',col:'l1',
+    inc:['Agisce solo con indicazioni esplicite o sollecitazione','Usa strumenti nelle funzioni più elementari','Non opera selezioni autonome, segue modelli altrui','Riconosce elementi di base solo se esplicitamente indicati','Risolve bisogni immediati senza pianificazione'],
+    exc:['Autonomia nella scelta di strumenti o strategie','Confronto tra fonti o opzioni','Applicazione di criteri propri di valutazione','Supporto o guida ad altri','Pianificazione o progettazione'] },
+  L2:{ label:'L2 — Sperimentazione/Esplorazione',col:'l2',
+    inc:['Opera in autonomia su compiti assegnati','Applica criteri di base nella selezione','Confronta opzioni individuando differenze evidenti','Inizia a costruire un metodo personale, anche non consolidato','Documenta in modo essenziale le esperienze'],
+    exc:['Definizione autonoma di strategie complesse','Gestione di contesti non strutturati','Supporto sistematico a colleghi','Progettazione di modelli riutilizzabili','Piano strutturato e pluriennale di sviluppo'] },
+  L3:{ label:'L3 — Integrazione/Consolidamento',col:'l3',
+    inc:['Definisce proprie strategie strutturate adeguate al contesto','Valuta criticamente qualità e pertinenza in autonomia','Integra fonti e strumenti in modo coerente','Condivide sistematicamente e contribuisce a pratiche collaborative','Documenta e riflette regolarmente con ricadute misurabili'],
+    exc:['Esecuzione senza rielaborazione critica','Dipendenza da indicazioni altrui per situazioni nuove','Assenza di trasferimento competenze ad altri','Partecipazione episodica e non sistematizzata'] },
+  L4:{ label:'L4 — Innovazione/Leadership',col:'l4',
+    inc:['Progetta sistemi e modelli riutilizzabili e scalabili','Forma e guida altri in modo strutturato e continuativo','Introduce innovazioni e migliora processi a livello organizzativo','Definisce policy, standard e linee guida d\'istituto','Contribuisce a comunità esterne con pratiche basate su evidenze'],
+    exc:['Attività solo per sé senza impatto sulla comunità','Assenza di progettazione sistemica','Mancanza di ruolo attivo nella formazione di altri','Soluzioni ad hoc senza trasferibilità'] }
+};
+
+let figura=null, analisiData=null, workbooks={};
+
+function selFig(f){
+  figura=f;
+  document.getElementById('fc-ata').classList.toggle('sel',f==='ATA');
+  document.getElementById('fc-doc').classList.toggle('sel',f==='Docente');
+  document.getElementById('btn1').disabled=false;
+  const hp=document.getElementById('hpill');
+  hp.style.display='inline-block'; hp.textContent=f;
+  hp.style.cssText+=`;background:${f==='ATA'?'#E8F2EC':'#EEF3FA'};color:${f==='ATA'?'#2A5C45':'#1A3A6B'}`;
+}
+
+function gp(n){
+  document.querySelectorAll('.pane').forEach((p,i)=>p.classList.toggle('active',i===n-1));
+  document.querySelectorAll('.sitem').forEach((s,i)=>{
+    s.classList.remove('active','done');
+    if(i===n-1) s.classList.add('active');
+    else if(i<n-1) s.classList.add('done');
+    document.getElementById('sn'+(i+1)).textContent=i<n-1?'✓':i+1;
+  });
+  if(n===3) renderThresh();
+}
+
+function onFile(inp){const f=inp.files[0];if(f) procFile(f);}
+function onDrop(e){e.preventDefault();document.getElementById('uz').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)procFile(f);}
+async function procFile(f){
+  document.getElementById('fname').textContent=f.name;
+  document.getElementById('fpill').style.display='flex';
+  document.getElementById('tc').style.display='block';
+
+  if(f.type==='text/plain'){
+    const r=new FileReader();
+    r.onload=e=>{ document.getElementById('rt1').value=e.target.result; };
+    r.readAsText(f);
+    return;
+  }
+
+  if(f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf')){
+    document.getElementById('rt1').value='⏳ Estrazione testo dal PDF in corso...';
+    try {
+      const pdfjsLib=window['pdfjs-dist/build/pdf'];
+      if(!pdfjsLib.GlobalWorkerOptions.workerSrc) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const buf=await f.arrayBuffer();
+      const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+      let fullText='';
+      for(let p=1;p<=pdf.numPages;p++){
+        const page=await pdf.getPage(p);
+        const tc=await page.getTextContent();
+        const pageText=tc.items.map(i=>i.str).join(' ');
+        fullText+=pageText+'\n';
+      }
+      fullText=fullText.trim();
+      if(!fullText) throw new Error('Nessun testo estraibile (PDF scansionato?)');
+      document.getElementById('rt1').value=fullText;
+      console.log('[PDF] Estratti',fullText.length,'caratteri da',pdf.numPages,'pagine');
+    } catch(err){
+      document.getElementById('rt1').value='';
+      alert('Errore estrazione PDF: '+err.message+'\n\nIncolla il testo manualmente nella casella in basso.');
+      console.error(err);
+    }
+    return;
+  }
+
+  // fallback altri formati
+  const r=new FileReader();
+  r.onload=e=>{ document.getElementById('rt1').value=new TextDecoder().decode(e.target.result); };
+  r.readAsArrayBuffer(f);
+}
+function rmFile(){document.getElementById('fi').value='';document.getElementById('fpill').style.display='none';document.getElementById('rt1').value='';document.getElementById('tc').style.display='none';}
+
+function togT(el){
+  el.classList.toggle('open');
+  el.nextElementSibling.classList.toggle('open');
+  el.querySelector('span:last-child').textContent=el.classList.contains('open')?'Chiudi ↑':'Espandi ↓';
+}
+function renderThresh(){
+  document.getElementById('tbody').innerHTML=Object.entries(SOGLIE).map(([lv,s])=>`
+    <div class="lrow">
+      <div class="ltag ${s.col}">${lv}</div>
+      <div class="lcrit">
+        <strong>INCLUSO:</strong><br>${s.inc.map(x=>`<span class="inc">✓ ${x}</span>`).join('<br>')}
+        <br><br><strong>ESCLUSO:</strong><br>${s.exc.map(x=>`<span class="exc">✗ ${x}</span>`).join('<br>')}
+      </div>
+    </div>`).join('');
+}
+
+// ─────────────────────────────────────────────
+// ANALISI PRINCIPALE
+// ─────────────────────────────────────────────
+async function avvia(){
+  const testo=(document.getElementById('rt1').value.trim()||document.getElementById('rt2').value.trim());
+  if(!testo){alert('Inserisci o carica il testo del report.');return;}
+  if(!figura){alert('Seleziona prima la figura.');return;}
+
+  const rigor=document.getElementById('rigor').value;
+  const tmpl=TEMPLATES[figura];
+
+  const rigorMap={
+    standard:'Mite: valorizza gli elementi positivi presenti. Conferma il livello anche con evidenze parziali, declassa solo in caso di assenza totale di elementi coerenti.',
+    critico:'Critico: in dubbio declassa. Genericità non giustifica L3/L4.',
+    severo:'Molto critico: declassa se mancano prove concrete di leadership/innovazione sistemica.'
+  };
+
+  // Schema indicatori compatto
+  let schemaInd='';
+  for(const [aId,aD] of Object.entries(tmpl))
+    for(const sh of aD.sheets)
+      schemaInd+=`${aId} C${sh.comp}: ${sh.indicators.join(', ')}\n`;
+
+  const figPfx=figura==='ATA'?'ATA':'DOC';
+
+  const systemMsg=`Sei valutatore DigCompEdu per ${figura}. Rigore: ${rigorMap[rigor]}
+
+SOGLIE:
+L1: agisce solo su indicazione, no autonomia, no confronto, no pianificazione.
+L2: autonomia su compiti assegnati, criteri base, inizia metodo personale.
+L3: strategie proprie documentate, valutazione critica autonoma, condivisione sistematica con ricadute osservabili.
+L4: progettazione sistemica scalabile, forma/guida altri strutturalmente, policy d'istituto, disseminazione esterna.
+
+INDICATORI ${figura}:
+${schemaInd}
+
+FORMATO: casi di studio narrativi ATA. Livello nel titolo ("Studio di caso L2"). Fasi numerate corrispondono agli indicatori.
+
+RIFERIMENTI PER CAPIRE IL FORMATO ATA:
+- I casi ATA descrivono situazioni operative concrete (email, cloud, turni, laboratori, comunicazioni di servizio)
+- Le fasi non citano codici indicatori ma azioni operative (es. "Fase 1. Rileva criticità...", "Fase 2. Analizza...")
+- La sottocompetenza si ricava dal TITOLO del documento (es. "NETIQUETTE" → comp 2.5, area A2; "CONDIVIDERE LE INFORMAZIONI" → comp 2.2, area A2; "Gestire l'identità digitale" → comp 2.6, area A2; "COLLABORARE ATTRAVERSO LE TECNOLOGIE DIGITALI" → comp 2.4, area A2)
+- Per ATA area A1: "Navigare ricercare" → 1.1, "Valutare dati" → 1.2, "Gestire organizzare" → 1.3
+- Per ATA area A2: "Interagire" → 2.1, "Condividere informazioni" → 2.2, "Cittadinanza digitale" → 2.3, "Collaborare" → 2.4, "Netiquette" → 2.5, "Identità digitale" → 2.6
+
+REGOLE:
+- Il livello presente nel documento NON è autodichiarato dal soggetto ma assegnato da un sistema automatizzato esterno. Usa sempre questa terminologia: "livello assegnato" (non "livello dichiarato"), "livello rilevato dall'analisi" (non "livello che il soggetto si attribuisce").
+- Nel testo delle motivazioni NON scrivere mai frasi come "il soggetto dichiara L4" o "il candidato afferma di essere a L3". Usa invece: "il livello assegnato dal sistema è L4", "dall'analisi del caso emerge L3", "il profilo descritto corrisponde a L2".
+- Il testo descrive un profilo ideale: valuta se le azioni descritte sono coerenti e plausibili con il livello assegnato.
+- Per ATA: L3 richiede intervento autonomo su situazione complessa + proposta ai colleghi. L4 richiede progettazione di sistema condiviso + formazione/guida strutturata di altri + impatto organizzativo.
+- Genericità senza nessun elemento concreto = declassa. Ma presenza di dettagli operativi specifici = conferma.
+- Identifica sottocompetenza dal TITOLO del documento, non dalle fasi.
+
+OUTPUT: JSON puro, zero testo esterno.
+
+LUNGHEZZA TESTI — rispetta questi limiti TASSATIVI:
+- motivazione_si / motivazione_no / motivazione_dubbio: OBBLIGATORIO, sempre presente anche se breve. Max 5 frasi. Cita elementi specifici del testo.
+- punti_forza: OBBLIGATORIO, sempre presente. Max 2 punti, 1 frase ciascuno.
+- aspetti_consolidare: OBBLIGATORIO, sempre presente. Max 2 punti, 1 frase ciascuno.
+- motivazione_analisi: OBBLIGATORIO, sempre presente. Min 2 frasi, max 5 frasi.
+- nota_generale: OBBLIGATORIO, sempre presente. Max 3 frasi.
+- Non lasciare MAI un campo vuoto o con stringa vuota "". Se il verdetto è "si", compila motivazione_si. Se "no", compila motivazione_no. Se "dubbio", compila motivazione_dubbio.
+
+Schema: {"figura":"${figura}","sottocompetenza_rilevata":"1.1","area_rilevata":"A1","filename_output":"${figPfx}-A1-C1.1-valutazione.xlsx","sommario":{"totale":0,"confermati":0,"parziali":0,"non_confermati":0,"nota_generale":"max 2 frasi"},"indicatori":{"1.1.1":{"livello_assegnato":"L4","livello_rilevato":"L3","verdetto":"no","motivazione_si":"","motivazione_no":"max 2 frasi","motivazione_dubbio":"","punti_forza":"punto 1; punto 2","aspetti_consolidare":"lacuna 1; lacuna 2","motivazione_analisi":"max 3 frasi"}}}`;
+
+  // Troncatura intelligente: mantieni inizio + fine (titolo + livello + conclusioni)
+  const MAX=28000;
+  let testoOk=testo;
+  if(testo.length>MAX){
+    const head=testo.substring(0,Math.round(MAX*0.7));
+    const tail=testo.substring(testo.length-Math.round(MAX*0.3));
+    testoOk=head+'\n\n[...testo centrale omesso per lunghezza...]\n\n'+tail;
+    console.log('[Troncatura] Originale:',testo.length,'→ Inviato:',testoOk.length,'caratteri');
+  }
+
+  showLoad('Analisi AI in corso...');
+
+  try {
+    updLoad('Elaborazione caso di studio...');
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:6000,
+        system:systemMsg,
+        messages:[{role:'user',content:'Analizza e restituisci SOLO il JSON:\n\n'+testoOk}]
+      })
+    });
+
+    if(!res.ok){
+      const errBody=await res.text().catch(()=>'no body');
+      throw new Error(`HTTP ${res.status}: ${errBody.substring(0,400)}`);
+    }
+
+    const data=await res.json();
+    if(data.error) throw new Error(`API: ${data.error.type} — ${data.error.message}`);
+    if(!data.content||!data.content.length) throw new Error('Risposta API vuota');
+
+    const raw=data.content.map(b=>b.text||'').join('');
+    console.log('[AI raw] lunghezza risposta:', raw.length, 'primi 200 car:', raw.substring(0,200));
+
+    // Parser JSON robusto: trova il primo { e l'ultimo } bilanciati
+    let parsed = null;
+    const firstBrace = raw.indexOf('{');
+    const lastBrace = raw.lastIndexOf('}');
+    if(firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace){
+      throw new Error('Nessun JSON trovato nella risposta AI: '+raw.substring(0,400));
+    }
+    const jsonStr = raw.substring(firstBrace, lastBrace+1);
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch(parseErr){
+      // Prova a fare cleanup del JSON (virgole finali, caratteri speciali)
+      const cleaned = jsonStr
+        .replace(/,\s*([}\]])/g, '$1')   // trailing commas
+        .replace(/[\x00-\x1F\x7F]/g, ' '); // control chars
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch(e2){
+        console.error('[JSON parse fail] stringa:', jsonStr.substring(0,500));
+        throw new Error('Parsing JSON fallito: '+parseErr.message+'. Primi 300 char: '+jsonStr.substring(0,300));
+      }
+    }
+    analisiData = parsed;
+    console.log('[AI parsed] sottocomp:', analisiData.sottocompetenza_rilevata, 'area:', analisiData.area_rilevata, 'indicatori:', Object.keys(analisiData.indicatori||{}).join(', '));
+
+    updLoad('Generazione xlsx...');
+    await new Promise(r=>setTimeout(r,150));
+
+    const compCode=analisiData.sottocompetenza_rilevata;
+    const areaId=analisiData.area_rilevata;
+
+    if(!compCode || !areaId){
+      throw new Error(`L'AI non ha identificato sottocompetenza (${compCode}) o area (${areaId}). Verifica che il PDF contenga un titolo come "1.1 Comunicazione organizzativa" o "Studio di caso L3".`);
+    }
+
+    const areaData=TEMPLATES[figura]?.[areaId];
+    const sheetDef=areaData?.sheets?.find(s=>s.comp===compCode);
+
+    if(!sheetDef){
+      // Prova a trovare l'area automaticamente cercando tra tutti i template
+      let foundSheet=null, foundArea=null;
+      for(const [aid,ad] of Object.entries(TEMPLATES[figura])){
+        const s=ad.sheets.find(sh=>sh.comp===compCode);
+        if(s){ foundSheet=s; foundArea=aid; break; }
+      }
+      if(foundSheet){
+        console.warn(`[Fix] Area corretta automaticamente: ${areaId} → ${foundArea}`);
+        analisiData.area_rilevata=foundArea;
+        workbooks={single:buildSingleSheet(foundSheet,analisiData.indicatori,analisiData.filename_output||`${figPfx}-${foundArea}-C${compCode}-valutazione.xlsx`)};
+      } else {
+        throw new Error(`Sottocompetenza "${compCode}" non trovata nei template per ${figura}. Indicatori disponibili: ${Object.keys(analisiData.indicatori||{}).join(', ')}`);
+      }
+    } else {
+      workbooks={single:buildSingleSheet(sheetDef,analisiData.indicatori,analisiData.filename_output||`${figPfx}-${areaId}-C${compCode}-valutazione.xlsx`)};
+    }
+
+    renderRisultati(analisiData);
+    renderDownloads();
+    gp(4);
+  } catch(err){
+    alert('Errore analisi:\n'+err.message+'\n\nAprire la console per dettagli.');
+    console.error('[DigCompEdu Valutatore]',err);
+  } finally { hideLoad(); }
+}
+
+// ─────────────────────────────────────────────
+// GENERAZIONE XLSX — singolo sheet
+// ─────────────────────────────────────────────
+function buildSingleSheet(sheetDef, indicatori, filename){
+  const wb=XLSX.utils.book_new();
+  const inds=sheetDef.indicators;
+
+  const row0=['Elementi di analisi','',...inds];
+  const row1=['Conferma il livello attribuito col feedback','sì, perché...\u00a0',...inds.map(id=>{
+    const d=indicatori[id]; if(!d) return '';
+    return d.verdetto==='si'?(d.motivazione_si||''):'';
+  })];
+  const row2=['','no, perché...\u00a0',...inds.map(id=>{
+    const d=indicatori[id]; if(!d) return '';
+    return d.verdetto==='no'?(d.motivazione_no||''):'';
+  })];
+  const row3=['','sono in dubbio perché...\u00a0',...inds.map(id=>{
+    const d=indicatori[id]; if(!d) return '';
+    return d.verdetto==='dubbio'?(d.motivazione_dubbio||''):'';
+  })];
+  const row4=['Livello attribuito','',...inds.map(id=>{
+    const d=indicatori[id];
+    return d?(d.livello_rilevato||d.livello_assegnato||d.livello_dichiarato||''):'';
+  })];
+  const row5=['Osservazioni di accompagnamento','motivazione',...inds.map(id=>{
+    const d=indicatori[id];
+    return d?(d.motivazione_analisi||d.motivazione_si||d.motivazione_no||d.motivazione_dubbio||''):'';
+  })];
+  const row6=['','punti di forza\u00a0',...inds.map(id=>{
+    const d=indicatori[id]; return d?(d.punti_forza||''):'';
+  })];
+  const row7=['','aspetti da consolidare',...inds.map(id=>{
+    const d=indicatori[id]; return d?(d.aspetti_consolidare||''):'';
+  })];
+
+  const ws=XLSX.utils.aoa_to_sheet([row0,row1,row2,row3,row4,row5,row6,row7]);
+  ws['!cols']=[{wch:40},{wch:30},...inds.map(()=>({wch:42}))];
+  ws['!rows']=[{hpt:18},{hpt:90},{hpt:90},{hpt:70},{hpt:22},{hpt:90},{hpt:70},{hpt:70}];
+  XLSX.utils.book_append_sheet(wb, ws, sheetDef.name);
+
+  wb._filename=filename;
+  return wb;
+}
+
+function downloadXlsx(){
+  const wb=workbooks.single;
+  XLSX.writeFile(wb, wb._filename);
+}
+
+// ─────────────────────────────────────────────
+// RENDER UI
+// ─────────────────────────────────────────────
+function renderDownloads(){
+  const d=analisiData;
+  const fname=workbooks.single?._filename||'valutazione.xlsx';
+  const label=`${d.figura} — Area ${d.area_rilevata} — Competenza ${d.sottocompetenza_rilevata}`;
+  document.getElementById('dl-grid').innerHTML=`
+    <div class="dl-card" style="grid-column:1/-1">
+      <h4>${label}</h4>
+      <p>File generato: <code style="font-size:10px">${fname}</code></p>
+      <p style="font-size:11px;color:var(--text3)">Sheet: ${TEMPLATES[d.figura]?.[d.area_rilevata]?.sheets?.find(s=>s.comp===d.sottocompetenza_rilevata)?.name||'—'} · Indicatori: ${Object.keys(d.indicatori||{}).join(', ')}</p>
+      <button class="btn btn-dl" onclick="downloadXlsx()">⬇ Scarica xlsx</button>
+    </div>`;
+}
+
+function renderRisultati(r){
+  const s=r.sommario;
+  document.getElementById('sumgrid').innerHTML=`
+    <div class="sc"><div class="n">${s.totale}</div><div class="l">Analizzati</div></div>
+    <div class="sc" style="border-color:#B0D9A0">
+      <div class="n" style="color:var(--green)">${s.confermati}</div><div class="l">Confermati</div>
+      <div class="pb"><div class="pf" style="width:${s.totale?Math.round(s.confermati/s.totale*100):0}%"></div></div>
+    </div>
+    <div class="sc" style="border-color:var(--amber-b)">
+      <div class="n" style="color:var(--amber)">${s.parziali}</div><div class="l">Parziali</div>
+      <div class="pb"><div class="pf" style="width:${s.totale?Math.round(s.parziali/s.totale*100):0}%;background:var(--amber)"></div></div>
+    </div>
+    <div class="sc" style="border-color:var(--red-b)">
+      <div class="n" style="color:var(--red)">${s.non_confermati}</div><div class="l">Non confermati</div>
+      <div class="pb"><div class="pf" style="width:${s.totale?Math.round(s.non_confermati/s.totale*100):0}%;background:var(--red)"></div></div>
+    </div>`;
+
+  document.getElementById('nota-gen-box').innerHTML=s.nota_generale?`
+    <div class="nota-gen">
+      <div class="ctitle" style="margin-bottom:.4rem">Nota complessiva</div>
+      <p style="font-size:13px;color:var(--text2);line-height:1.65">${s.nota_generale}</p>
+    </div>`:'';
+
+  let html='';
+  for(const [id,d] of Object.entries(r.indicatori||{})){
+    const isOk=d.verdetto==='si';
+    const isDubbio=d.verdetto==='dubbio';
+    const hcls=isOk?'ok':isDubbio?'pa':'ko';
+    const vbadge=isOk?`<span class="verdict v-ok">✓ Confermato</span>`
+      :isDubbio?`<span class="verdict v-pa">⚠ In dubbio</span>`
+      :`<span class="verdict v-ko">✗ Non confermato</span>`;
+    const ldich=d.livello_assegnato||d.livello_dichiarato||'—';
+    const lril=d.livello_rilevato||'—';
+    const nD=parseInt(ldich.replace('L',''))||0, nR=parseInt(lril.replace('L',''))||0;
+    const detCls=isOk?'lb-ok':nR<nD?'lb-lo':'lb-pa';
+    const motCls=isOk?'ok':isDubbio?'pa':'ko';
+    const motTxt=d.motivazione_analisi||d.motivazione_si||d.motivazione_no||d.motivazione_dubbio||'';
+    const pf=(d.punti_forza||'').split(/[;\n]/).filter(x=>x.trim()).map(x=>`<li>${x.trim()}</li>`).join('');
+    const ac=(d.aspetti_consolidare||'').split(/[;\n]/).filter(x=>x.trim()).map(x=>`<li>${x.trim()}</li>`).join('');
+
+    html+=`<div class="rblock">
+      <div class="rhead ${hcls}">
+        <div>
+          <div class="ind-lbl">Indicatore ${id}</div>
+        </div>
+        <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+          <span class="lbadge lb-r">Assegnato: ${ldich}</span>
+          <span class="lbadge ${detCls}">Rilevato: ${lril}</span>
+          ${vbadge}
+        </div>
+      </div>
+      <div class="rbody">
+        <div class="motiv ${motCls}">${motTxt}</div>
+        ${pf||ac?`<div class="dgrid">
+          <div class="dbox pos"><h5>Punti di forza</h5><ul style="color:var(--green)">${pf||'<li style="color:var(--text3)">—</li>'}</ul></div>
+          <div class="dbox neg"><h5>Aspetti da consolidare</h5><ul style="color:var(--red)">${ac||'<li style="color:var(--text3)">—</li>'}</ul></div>
+        </div>`:''}
+      </div>
+    </div>`;
+  }
+  document.getElementById('rcontent').innerHTML=html;
+
+  document.getElementById('stat-box').style.display='block';
+  document.getElementById('stat-body').innerHTML=`
+    <div style="color:var(--green)">✓ ${s.confermati} confermati</div>
+    <div style="color:var(--amber)">⚠ ${s.parziali} parziali</div>
+    <div style="color:var(--red)">✗ ${s.non_confermati} non confermati</div>`;
+}
+
+function resetApp(){
+  figura=null; analisiData=null; workbooks={};
+  ['fc-ata','fc-doc'].forEach(id=>document.getElementById(id).classList.remove('sel'));
+  document.getElementById('btn1').disabled=true;
+  document.getElementById('hpill').style.display='none';
+  document.getElementById('fpill').style.display='none';
+  document.getElementById('rt1').value=''; document.getElementById('rt2').value='';
+  document.getElementById('tc').style.display='none';
+  document.getElementById('sumgrid').innerHTML=''; document.getElementById('rcontent').innerHTML='';
+  document.getElementById('dl-grid').innerHTML=''; document.getElementById('nota-gen-box').innerHTML='';
+  document.getElementById('stat-box').style.display='none';
+  gp(1);
+}
+
+function showLoad(m){document.getElementById('loading').classList.add('show');document.getElementById('lmsg').textContent=m;}
+function updLoad(m){document.getElementById('lmsg').textContent=m;}
+function hideLoad(){document.getElementById('loading').classList.remove('show');}
+</script>
+</body>
+</html>
