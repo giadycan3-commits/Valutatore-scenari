@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timer 15 min</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --ring-track: rgba(255,255,255,0.06);
+    --ring-color: #c8f0d8;
+    --ring-warn: #f5d97a;
+    --ring-danger: #f07070;
+    --text-main: #eef2f0;
+    --text-muted: rgba(238,242,240,0.35);
+    --btn-bg: rgba(200,240,216,0.08);
+    --btn-border: rgba(200,240,216,0.18);
+    --btn-hover: rgba(200,240,216,0.14);
+    --btn-active-bg: #c8f0d8;
+    --btn-active-color: #0a1410;
+    --radius: 14px;
+  }
+
+  body {
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'DM Sans', sans-serif;
+    overflow: hidden;
+  }
+
+  .bg-glow {
+    position: fixed;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(150,230,180,0.07) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .card {
+    position: relative;
+    background: var(--surface);
+    border: 0.5px solid rgba(255,255,255,0.07);
+    border-radius: 28px;
+    padding: 48px 44px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 36px;
+    width: 340px;
+  }
+
+  .top-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    align-self: flex-start;
+  }
+
+  /* Ring */
+  .ring-wrap {
+    position: relative;
+    width: 200px;
+    height: 200px;
+  }
+
+  .ring-svg {
+    transform: rotate(-90deg);
+    width: 100%; height: 100%;
+  }
+
+  .ring-bg {
+    fill: none;
+    stroke: var(--ring-track);
+    stroke-width: 6;
+  }
+
+  .ring-fg {
+    fill: none;
+    stroke: var(--ring-color);
+    stroke-width: 6;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.95s linear, stroke 0.6s ease;
+  }
+
+  .ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .time {
+    font-family: 'DM Mono', monospace;
+    font-size: 46px;
+    font-weight: 300;
+    color: var(--text-main);
+    letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .status {
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-family: 'DM Mono', monospace;
+    min-height: 16px;
+    transition: color 0.3s;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 12px 0;
+    border: 0.5px solid var(--btn-border);
+    border-radius: var(--radius);
+    background: var(--btn-bg);
+    color: var(--text-main);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s, border-color 0.15s;
+    letter-spacing: 0.3px;
+  }
+
+  .btn:hover { background: var(--btn-hover); border-color: rgba(200,240,216,0.28); }
+  .btn:active { transform: scale(0.97); }
+
+  .btn.primary {
+    background: var(--btn-active-bg);
+    border-color: var(--btn-active-bg);
+    color: var(--btn-active-color);
+    font-weight: 500;
+    flex: 2;
+  }
+
+  .btn.primary:hover { background: #d8f4e4; }
+
+  .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* Tick marks */
+  .ticks {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  /* Pulse dot */
+  .pulse-dot {
+    position: absolute;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--ring-color);
+    top: 50%; left: 50%;
+    transform-origin: center;
+    transition: background 0.6s;
+    opacity: 0;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+    50% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+  }
+
+  .running .pulse-dot { animation: pulse 2s ease-in-out infinite; opacity: 0.7; }
+
+  /* Completion flash */
+  @keyframes flashComplete {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .complete .time { animation: flashComplete 1s ease-in-out 3; }
+
+  .divider {
+    width: 100%;
+    height: 0.5px;
+    background: rgba(255,255,255,0.05);
+  }
+
+  .footer {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<div class="card" id="card">
+  <span class="top-label">Timer</span>
+
+  <div class="ring-wrap">
+    <svg class="ring-svg" viewBox="0 0 200 200">
+      <circle class="ring-bg" cx="100" cy="100" r="88"/>
+      <circle class="ring-fg" cx="100" cy="100" r="88" id="ring"/>
+    </svg>
+    <div class="ring-center">
+      <div class="time" id="display">15:00</div>
+      <div class="status" id="status">pronto</div>
+    </div>
+    <div class="pulse-dot" id="dot" style="transform:translate(-50%,-50%)"></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" id="btn-play" onclick="toggleTimer()">
+      <svg id="play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      <span id="play-label">Avvia</span>
+    </button>
+    <button class="btn" onclick="resetTimer()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      Reset
+    </button>
+  </div>
+
+  <div class="divider"></div>
+  <span class="footer">15 min · countdown</span>
+</div>
+
+<script>
+const TOTAL = 15 * 60;
+let remaining = TOTAL;
+let running = false;
+let iv = null;
+let audioCtx = null;
+
+const C = 2 * Math.PI * 88;
+const ring = document.getElementById('ring');
+const display = document.getElementById('display');
+const status = document.getElementById('status');
+const playIcon = document.getElementById('play-icon');
+const playLabel = document.getElementById('play-label');
+const card = document.getElementById('card');
+const dot = document.getElementById('dot');
+
+ring.style.strokeDasharray = C;
+ring.style.strokeDashoffset = 0;
+
+const PLAY_PATH = '<path d="M8 5v14l11-7z"/>';
+const PAUSE_PATH = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playBeep() {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, ctx.currentTime);
+  gain.gain.setValueAtTime(0.35, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.18);
+}
+
+function playGong() {
+  const ctx = getAudioCtx();
+  const now = ctx.currentTime;
+
+  function strike(freq, vol, dur) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.97, now + dur);
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    osc.start(now);
+    osc.stop(now + dur);
+  }
+
+  strike(110, 0.6, 3.5);
+  strike(220, 0.3, 2.8);
+  strike(165, 0.15, 2.0);
+  strike(330, 0.08, 1.5);
+}
+
+function fmt(s) {
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+
+function updateUI() {
+  display.textContent = fmt(remaining);
+  const pct = remaining / TOTAL;
+  ring.style.strokeDashoffset = C * (1 - pct);
+
+  if (pct <= 0.1) {
+    ring.style.stroke = 'var(--ring-danger)';
+    dot.style.background = 'var(--ring-danger)';
+  } else if (pct <= 0.33) {
+    ring.style.stroke = 'var(--ring-warn)';
+    dot.style.background = 'var(--ring-warn)';
+  } else {
+    ring.style.stroke = 'var(--ring-color)';
+    dot.style.background = 'var(--ring-color)';
+  }
+}
+
+function toggleTimer() {
+  if (remaining === 0) return;
+  getAudioCtx();
+  running = !running;
+  if (running) {
+    playIcon.innerHTML = PAUSE_PATH;
+    playLabel.textContent = 'Pausa';
+    status.textContent = 'in corso';
+    card.classList.add('running');
+    iv = setInterval(() => {
+      remaining--;
+      updateUI();
+      if (remaining > 0 && remaining <= 5) {
+        playBeep();
+      }
+      if (remaining === 0) {
+        clearInterval(iv);
+        running = false;
+        card.classList.remove('running');
+        card.classList.add('complete');
+        playIcon.innerHTML = PLAY_PATH;
+        playLabel.textContent = 'Avvia';
+        status.textContent = 'completato!';
+        playGong();
+        setTimeout(() => card.classList.remove('complete'), 4000);
+      }
+    }, 1000);
+  } else {
+    clearInterval(iv);
+    card.classList.remove('running');
+    playIcon.innerHTML = PLAY_PATH;
+    playLabel.textContent = 'Riprendi';
+    status.textContent = 'in pausa';
+  }
+}
+
+function resetTimer() {
+  clearInterval(iv);
+  running = false;
+  remaining = TOTAL;
+  card.classList.remove('running','complete');
+  playIcon.innerHTML = PLAY_PATH;
+  playLabel.textContent = 'Avvia';
+  status.textContent = 'pronto';
+  updateUI();
+}
+
+updateUI();
+</script>
+</body>
+</html>
